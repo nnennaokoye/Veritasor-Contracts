@@ -152,7 +152,7 @@ impl AttestationContract {
         ranges.push_back(AttestationRange {
             start_period,
             end_period,
-            merkle_root,
+            merkle_root: merkle_root.clone(),
             timestamp,
             version,
             fee_paid,
@@ -160,6 +160,12 @@ impl AttestationContract {
         });
 
         env.storage().instance().set(&key, &ranges);
+
+        // Create a topic tuple to categorize the event
+        let topics = (soroban_sdk::Symbol::new(&env, "attestation"), soroban_sdk::Symbol::new(&env, "multi_period_issued"), business.clone());
+        // Publish the event with the range and root
+        env.events().publish(topics, (start_period, end_period, merkle_root));
+
     }
 
     

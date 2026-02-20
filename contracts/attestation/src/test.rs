@@ -2,6 +2,8 @@
 
 use super::{AttestationContract, AttestationContractClient};
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
+use soroban_sdk::testutils::Events; 
+use soroban_sdk::TryIntoVal;
 
 /// Helper to generate a dummy 32-byte Merkle root
 fn dummy_root(env: &Env, val: u8) -> BytesN<32> {
@@ -27,6 +29,34 @@ fn setup_env_and_contract() -> (Env, AttestationContractClient<'static>, Address
     let business = Address::generate(&env);
 
     (env, client, business)
+}
+
+#[test]
+fn test_submit_emits_event() {
+    let (env, client, business) = setup_env_and_contract();
+    let root = dummy_root(&env, 5);
+
+    // 1. Submit the attestation
+    client.submit_multi_period_attestation(&business, &202401, &202406, &root, &1672531200, &1);
+
+    // 2. Fetch all events emitted in the environment
+    let events = env.events().all();
+    assert!(events.len() > 0, "No events were emitted");
+
+    // 3. Grab the most recent event
+    // Soroban events are stored as tuples: (ContractId, Topics, Data)
+    let last_event = events.last().unwrap();
+
+    // Verify the event came from our exact contract
+    assert_eq!(last_event.0, client.address, "Event contract ID mismatch");
+
+    // 4. Decode the data payload: (start_period, end_period, merkle_root)
+    let event_data: (u32, u32, BytesN<32>) = last_event.2.try_into_val(&env).unwrap();
+    
+    // 5. Assert the broadcasted data matches our submission
+    assert_eq!(event_data.0, 202401, "Start period mismatch in event");
+    assert_eq!(event_data.1, 202406, "End period mismatch in event");
+    assert_eq!(event_data.2, root, "Merkle root mismatch in event");
 }
 
 #[test]
