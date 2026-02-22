@@ -1,4 +1,3 @@
-#![cfg(test)]
 
 use crate::test::*;
 use soroban_sdk::testutils::{Address as _, Events};
@@ -290,7 +289,7 @@ fn test_revocation_events() {
 
     // Verify the revocation event was emitted
     let events = test.env.events().all();
-    assert!(events.len() >= 1); // At least the revocation event
+    assert!(!events.is_empty()); // At least the revocation event
 }
 
 #[test]

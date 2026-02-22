@@ -99,7 +99,7 @@ impl TestEnv {
         &self,
         business: Address,
         period: String,
-    ) -> Option<((BytesN<32>, u64, u32, i128), Option<(Address, u64, String)>)> {
+    ) -> Option<AttestationWithRevocation> {
         self.client.get_attestation_with_status(&business, &period)
     }
 
@@ -117,11 +117,7 @@ impl TestEnv {
         &self,
         business: Address,
         periods: Vec<String>,
-    ) -> Vec<(
-        String,
-        Option<(BytesN<32>, u64, u32, i128)>,
-        Option<(Address, u64, String)>,
-    )> {
+    ) -> AttestationStatusResult {
         self.client.get_business_attestations(&business, &periods)
     }
 

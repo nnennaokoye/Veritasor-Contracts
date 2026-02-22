@@ -1,6 +1,13 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
+// Type aliases to reduce complexity
+type AttestationData = (BytesN<32>, u64, u32, i128);
+type RevocationData = (Address, u64, String);
+type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
+#[allow(dead_code)]
+type AttestationStatusResult = Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
+
 // ─── Feature modules: add new `pub mod <name>;` here (one per feature) ───
 pub mod access_control;
 pub mod dynamic_fees;
@@ -428,7 +435,7 @@ impl AttestationContract {
         env: Env,
         business: Address,
         period: String,
-    ) -> Option<((BytesN<32>, u64, u32, i128), Option<(Address, u64, String)>)> {
+    ) -> Option<AttestationWithRevocation> {
         let key = DataKey::Attestation(business.clone(), period.clone());
         let revoked_key = DataKey::Revoked(business, period);
 
@@ -512,11 +519,7 @@ impl AttestationContract {
         env: Env,
         business: Address,
         periods: Vec<String>,
-    ) -> Vec<(
-        String,
-        Option<(BytesN<32>, u64, u32, i128)>,
-        Option<(Address, u64, String)>,
-    )> {
+    ) -> AttestationStatusResult {
         let mut results = Vec::new(&env);
 
         for i in 0..periods.len() {
