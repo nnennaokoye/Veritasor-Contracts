@@ -453,18 +453,9 @@ fn test_distribute_revenue_negative_amount_panics() {
 fn test_calculate_share_exact() {
     let (_env, client, _admin, _attestation, _token) = setup();
 
-    assert_eq!(
-        RevenueShareContract::calculate_share(10_000, 5000),
-        5_000
-    );
-    assert_eq!(
-        RevenueShareContract::calculate_share(10_000, 2500),
-        2_500
-    );
-    assert_eq!(
-        RevenueShareContract::calculate_share(100_000, 1000),
-        10_000
-    );
+    assert_eq!(RevenueShareContract::calculate_share(10_000, 5000), 5_000);
+    assert_eq!(RevenueShareContract::calculate_share(10_000, 2500), 2_500);
+    assert_eq!(RevenueShareContract::calculate_share(100_000, 1000), 10_000);
 }
 
 #[test]
@@ -472,10 +463,7 @@ fn test_calculate_share_rounding() {
     let (_env, client, _admin, _attestation, _token) = setup();
 
     // 10,000 * 3333 / 10,000 = 3,333 (truncated)
-    assert_eq!(
-        RevenueShareContract::calculate_share(10_000, 3333),
-        3_333
-    );
+    assert_eq!(RevenueShareContract::calculate_share(10_000, 3333), 3_333);
 
     // 1,000 * 3333 / 10,000 = 333 (truncated from 333.3)
     assert_eq!(RevenueShareContract::calculate_share(1_000, 3333), 333);

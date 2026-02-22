@@ -30,9 +30,7 @@
 //! - Tracks distribution history for audit
 //! - Safe rounding with residual allocation
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, Env, String, Vec,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Vec};
 
 // ════════════════════════════════════════════════════════════════════
 //  Storage types
@@ -97,12 +95,7 @@ impl RevenueShareContract {
     ///
     /// # Panics
     /// - If already initialized
-    pub fn initialize(
-        env: Env,
-        admin: Address,
-        attestation_contract: Address,
-        token: Address,
-    ) {
+    pub fn initialize(env: Env, admin: Address, attestation_contract: Address, token: Address) {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("already initialized");
         }
@@ -210,12 +203,7 @@ impl RevenueShareContract {
     /// - If distribution already executed for this (business, period)
     /// - If attestation validation fails
     /// - If token transfers fail
-    pub fn distribute_revenue(
-        env: Env,
-        business: Address,
-        period: String,
-        revenue_amount: i128,
-    ) {
+    pub fn distribute_revenue(env: Env, business: Address, period: String, revenue_amount: i128) {
         business.require_auth();
 
         assert!(revenue_amount >= 0, "revenue amount must be non-negative");
