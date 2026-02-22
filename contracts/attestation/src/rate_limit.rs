@@ -153,10 +153,7 @@ pub fn check_rate_limit(env: &Env, business: &Address) {
         set_timestamps(env, business, &active);
     }
 
-    assert!(
-        active.len() < config.max_submissions,
-        "rate limit exceeded"
-    );
+    assert!(active.len() < config.max_submissions, "rate limit exceeded");
 }
 
 /// Record the current ledger timestamp for `business`.
