@@ -1,5 +1,6 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, Vec};
+use veritasor_common::merkle;
 
 // ─── Feature modules: add new `pub mod <name>;` here (one per feature) ───
 pub mod access_control;
@@ -400,6 +401,27 @@ impl AttestationContract {
             Self::get_attestation(env.clone(), business, period)
         {
             stored_root == merkle_root
+        } else {
+            false
+        }
+    }
+
+    /// Verify a specific revenue entry against a stored attestation root.
+    ///
+    /// * `business`  – Business address.
+    /// * `period`    – Period string.
+    /// * `leaf_data` – The raw data of the revenue entry to verify.
+    /// * `proof`     – Merkle proof (sister hashes, bottom-to-top).
+    pub fn verify_revenue_entry(
+        env: Env,
+        business: Address,
+        period: String,
+        leaf_data: Bytes,
+        proof: Vec<BytesN<32>>,
+    ) -> bool {
+        if let Some((root, _ts, _ver, _fee)) = Self::get_attestation(env.clone(), business, period) {
+            let leaf = merkle::hash_leaf(&env, &leaf_data);
+            merkle::verify_merkle_proof(&env, &root, &leaf, &proof)
         } else {
             false
         }
