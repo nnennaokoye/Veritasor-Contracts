@@ -43,7 +43,6 @@ fn setup_uninitialized() -> (Env, AttestationRegistryClient<'static>) {
     (env, client)
 }
 
-
 // ════════════════════════════════════════════════════════════════════
 //  Initialization tests
 // ════════════════════════════════════════════════════════════════════
@@ -212,7 +211,10 @@ fn rollback_success() {
     let impl_v2_clone = impl_v2.clone();
 
     client.upgrade(&impl_v2, &2u32, &None);
-    assert_eq!(client.get_current_implementation(), Some(impl_v2_clone.clone()));
+    assert_eq!(
+        client.get_current_implementation(),
+        Some(impl_v2_clone.clone())
+    );
     assert_eq!(client.get_current_version(), Some(2u32));
 
     client.rollback();
@@ -298,11 +300,11 @@ fn admin_transfer_changes_admin() {
     let new_admin = Address::generate(&env);
 
     client.transfer_admin(&new_admin);
-    
+
     // Verify admin changed
     assert_eq!(client.get_admin(), Some(new_admin));
     assert_ne!(client.get_admin(), Some(admin));
-    
+
     // New admin should be able to upgrade
     let new_impl = Address::generate(&env);
     client.upgrade(&new_impl, &2u32, &None);
@@ -350,7 +352,10 @@ fn query_functions_work_after_multiple_upgrades() {
     let impl_v3_clone = impl_v3.clone();
 
     client.upgrade(&impl_v2, &2u32, &None);
-    assert_eq!(client.get_current_implementation(), Some(impl_v2_clone.clone()));
+    assert_eq!(
+        client.get_current_implementation(),
+        Some(impl_v2_clone.clone())
+    );
     assert_eq!(client.get_current_version(), Some(2u32));
     assert_eq!(client.get_previous_implementation(), Some(impl_v1));
     assert_eq!(client.get_previous_version(), Some(1u32));

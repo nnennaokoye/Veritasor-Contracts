@@ -110,7 +110,9 @@ fn test_batch_submit_single_item() {
 
     client.submit_attestations_batch(&items);
 
-    let (root, ts, ver, fee) = client.get_attestation(&business, &String::from_str(&env, "2026-01")).unwrap();
+    let (root, ts, ver, fee) = client
+        .get_attestation(&business, &String::from_str(&env, "2026-01"))
+        .unwrap();
     assert_eq!(root, BytesN::from_array(&env, &[1u8; 32]));
     assert_eq!(ts, 1_700_000_000);
     assert_eq!(ver, 1);
@@ -151,9 +153,15 @@ fn test_batch_submit_multiple_periods_same_business() {
     client.submit_attestations_batch(&items);
 
     // Verify all three attestations were stored
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-02")).is_some());
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-03")).is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-02"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-03"))
+        .is_some());
 
     // Verify count incremented correctly
     assert_eq!(client.get_business_count(&business), 3);
@@ -195,9 +203,15 @@ fn test_batch_submit_multiple_businesses() {
     client.submit_attestations_batch(&items);
 
     // Verify all businesses have their attestations
-    assert!(client.get_attestation(&business1, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business2, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business3, &String::from_str(&env, "2026-01")).is_some());
+    assert!(client
+        .get_attestation(&business1, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business2, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business3, &String::from_str(&env, "2026-01"))
+        .is_some());
 
     // Verify counts
     assert_eq!(client.get_business_count(&business1), 1);
@@ -336,8 +350,12 @@ fn test_batch_atomicity_all_succeed() {
     client.submit_attestations_batch(&items);
 
     // Both should be stored
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-02")).is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-02"))
+        .is_some());
 }
 
 #[test]
@@ -388,11 +406,17 @@ fn test_batch_atomicity_duplicate_prevents_all() {
     assert!(result.is_err());
 
     // Verify 2026-02 and 2026-03 were NOT stored
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-02")).is_none());
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-03")).is_none());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-02"))
+        .is_none());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-03"))
+        .is_none());
 
     // Only the original 2026-01 should exist
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-01")).is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-01"))
+        .is_some());
     assert_eq!(client.get_business_count(&business), 1); // Count should not have incremented
 }
 
@@ -443,9 +467,18 @@ fn test_batch_fees_calculated_correctly() {
     assert_eq!(initial_balance - final_balance, 3_000_000);
 
     // Verify each attestation recorded the correct fee
-    let (_, _, _, fee1) = t.client.get_attestation(&business, &String::from_str(&t.env, "2026-01")).unwrap();
-    let (_, _, _, fee2) = t.client.get_attestation(&business, &String::from_str(&t.env, "2026-02")).unwrap();
-    let (_, _, _, fee3) = t.client.get_attestation(&business, &String::from_str(&t.env, "2026-03")).unwrap();
+    let (_, _, _, fee1) = t
+        .client
+        .get_attestation(&business, &String::from_str(&t.env, "2026-01"))
+        .unwrap();
+    let (_, _, _, fee2) = t
+        .client
+        .get_attestation(&business, &String::from_str(&t.env, "2026-02"))
+        .unwrap();
+    let (_, _, _, fee3) = t
+        .client
+        .get_attestation(&business, &String::from_str(&t.env, "2026-03"))
+        .unwrap();
     assert_eq!(fee1, 1_000_000);
     assert_eq!(fee2, 1_000_000);
     assert_eq!(fee3, 1_000_000);
@@ -471,7 +504,8 @@ fn test_batch_fees_with_volume_discounts() {
     for i in 1..=9 {
         let period = String::from_str(&t.env, &std::format!("P-{:04}", i));
         let root = BytesN::from_array(&t.env, &[i as u8; 32]);
-        t.client.submit_attestation(&business, &period, &root, &1_700_000_000, &1);
+        t.client
+            .submit_attestation(&business, &period, &root, &1_700_000_000, &1);
     }
 
     // Now batch submit 3 more
@@ -586,8 +620,12 @@ fn test_batch_emits_events() {
 
     // Check that events were emitted (we can't easily verify event content in unit tests,
     // but we can verify the attestations exist which confirms events were emitted)
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business, &String::from_str(&env, "2026-02")).is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business, &String::from_str(&env, "2026-02"))
+        .is_some());
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -601,7 +639,8 @@ fn test_batch_vs_single_cost_comparison() {
     mint(&t.env, &t.token_addr, &business, 20_000_000);
 
     // Submit 5 attestations individually
-    let periods_single: std::vec::Vec<&str> = std::vec!["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"];
+    let periods_single: std::vec::Vec<&str> =
+        std::vec!["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"];
     for (i, period) in periods_single.iter().enumerate() {
         let root = BytesN::from_array(&t.env, &[(i + 1) as u8; 32]);
         t.client.submit_attestation(
@@ -734,10 +773,18 @@ fn test_batch_mixed_businesses_and_periods() {
     client.submit_attestations_batch(&items);
 
     // Verify all attestations
-    assert!(client.get_attestation(&business1, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business1, &String::from_str(&env, "2026-02")).is_some());
-    assert!(client.get_attestation(&business2, &String::from_str(&env, "2026-01")).is_some());
-    assert!(client.get_attestation(&business2, &String::from_str(&env, "2026-03")).is_some());
+    assert!(client
+        .get_attestation(&business1, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business1, &String::from_str(&env, "2026-02"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business2, &String::from_str(&env, "2026-01"))
+        .is_some());
+    assert!(client
+        .get_attestation(&business2, &String::from_str(&env, "2026-03"))
+        .is_some());
 
     // Verify counts
     assert_eq!(client.get_business_count(&business1), 2);
