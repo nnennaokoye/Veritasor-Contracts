@@ -1,22 +1,22 @@
 #[cfg(test)]
 mod test {
+    use crate::merkle::{hash_leaf, verify_merkle_proof};
     use soroban_sdk::{testutils::BytesN as _, Bytes, BytesN, Env, Vec};
-    use crate::merkle::{verify_merkle_proof, hash_leaf};
 
     #[test]
     fn test_verify_merkle_proof_simple() {
         let env = Env::default();
-        
+
         // Create a simple tree with 2 leaves
         // L1, L2
         // Root = hash(sort(L1, L2))
-        
+
         let leaf1_data = Bytes::from_slice(&env, b"revenue_entry_1");
         let leaf2_data = Bytes::from_slice(&env, b"revenue_entry_2");
-        
+
         let l1 = hash_leaf(&env, &leaf1_data);
         let l2 = hash_leaf(&env, &leaf2_data);
-        
+
         let mut combined = Bytes::new(&env);
         if l1 < l2 {
             combined.append(&l1.clone().into());
@@ -26,12 +26,12 @@ mod test {
             combined.append(&l1.clone().into());
         }
         let root = env.crypto().sha256(&combined).into();
-        
+
         let mut proof = Vec::new(&env);
         proof.push_back(l2.clone());
-        
+
         assert!(verify_merkle_proof(&env, &root, &l1, &proof));
-        
+
         let mut invalid_proof = Vec::new(&env);
         invalid_proof.push_back(BytesN::random(&env));
         assert!(!verify_merkle_proof(&env, &root, &l1, &invalid_proof));
@@ -40,14 +40,14 @@ mod test {
     #[test]
     fn test_verify_merkle_proof_height_3() {
         let env = Env::default();
-        
+
         // Tree:
         //        Root
         //       /    \
         //     H12    H34
         //    /  \    /  \
         //   L1  L2  L3  L4
-        
+
         let h = |e: &Env, a: BytesN<32>, b: BytesN<32>| -> BytesN<32> {
             let mut c = Bytes::new(e);
             if a < b {
@@ -88,10 +88,10 @@ mod test {
         let l1 = BytesN::random(&env);
         let l2 = BytesN::random(&env);
         let root = BytesN::random(&env);
-        
+
         let mut proof = Vec::new(&env);
         proof.push_back(l2);
-        
+
         assert!(!verify_merkle_proof(&env, &root, &l1, &proof));
     }
 
@@ -100,10 +100,10 @@ mod test {
         let env = Env::default();
         let l1 = BytesN::random(&env);
         let root = l1.clone();
-        
+
         let proof = Vec::new(&env);
         assert!(verify_merkle_proof(&env, &root, &l1, &proof));
-        
+
         let invalid_root = BytesN::random(&env);
         assert!(!verify_merkle_proof(&env, &invalid_root, &l1, &proof));
     }

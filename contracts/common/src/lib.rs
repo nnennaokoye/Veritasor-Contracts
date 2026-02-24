@@ -1,3 +1,4 @@
+#![no_std]
 //! Shared utilities and security invariant tests for Veritasor contracts.
 
 pub mod merkle;

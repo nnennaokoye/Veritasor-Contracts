@@ -419,7 +419,8 @@ impl AttestationContract {
         leaf_data: Bytes,
         proof: Vec<BytesN<32>>,
     ) -> bool {
-        if let Some((root, _ts, _ver, _fee)) = Self::get_attestation(env.clone(), business, period) {
+        if let Some((root, _ts, _ver, _fee)) = Self::get_attestation(env.clone(), business, period)
+        {
             let leaf = merkle::hash_leaf(&env, &leaf_data);
             merkle::verify_merkle_proof(&env, &root, &leaf, &proof)
         } else {
