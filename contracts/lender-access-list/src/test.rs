@@ -14,6 +14,7 @@ fn setup() -> (Env, LenderAccessListContractClient<'static>, Address) {
     (env, client, admin)
 }
 
+
 fn meta(env: &Env, name: &str) -> LenderMetadata {
     LenderMetadata {
         name: String::from_str(env, name),
