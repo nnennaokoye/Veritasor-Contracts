@@ -29,9 +29,9 @@ mod extended_metadata_test;
 #[cfg(test)]
 mod multisig_test;
 #[cfg(test)]
-mod test;
-#[cfg(test)]
 mod property_test;
+#[cfg(test)]
+mod test;
 // ─── End test modules ───
 
 pub mod dispute;

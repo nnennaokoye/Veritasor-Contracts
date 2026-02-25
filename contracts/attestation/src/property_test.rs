@@ -273,14 +273,19 @@ const fn alternating_root() -> [u8; 32] {
 /// | Timestamp   | 0, 1, realistic epoch, u64::MAX/2                        |
 /// | Version     | 0, 1, u32::MAX                                           |
 const DATA_INTEGRITY_CASES: &[([u8; 32], &str, u64, u32)] = &[
-    ([0u8; 32],           "2026-01",                             1_700_000_000, 1),
-    ([255u8; 32],         "2025-Q4",                             0,             0),
-    ([1u8; 32],           "2020-06",                             1,             u32::MAX),
-    ([127u8; 32],         "X",                                   u64::MAX / 2,  42),
-    ([128u8; 32],         "long-period-aaabbbcccdddeee000111222", 999,           100),
-    (alternating_root(),  "Q3-2025",                             1_000_000,     5),
-    ([42u8; 32],          "20261231",                            u64::MAX,      1),
-    ([0u8; 32],           "period-with-hyphens-and-123456789",   12345,         0),
+    ([0u8; 32], "2026-01", 1_700_000_000, 1),
+    ([255u8; 32], "2025-Q4", 0, 0),
+    ([1u8; 32], "2020-06", 1, u32::MAX),
+    ([127u8; 32], "X", u64::MAX / 2, 42),
+    (
+        [128u8; 32],
+        "long-period-aaabbbcccdddeee000111222",
+        999,
+        100,
+    ),
+    (alternating_root(), "Q3-2025", 1_000_000, 5),
+    ([42u8; 32], "20261231", u64::MAX, 1),
+    ([0u8; 32], "period-with-hyphens-and-123456789", 12345, 0),
 ];
 
 /// P4 + P5: submit, then verify retrieved data matches exactly and
@@ -312,10 +317,19 @@ fn prop_data_integrity_and_counter_monotonicity() {
                 panic!("case {idx} [{period_str}]: attestation must exist after submit")
             });
 
-        assert_eq!(got_root, root,      "case {idx} [{period_str}]: root mismatch");
-        assert_eq!(got_ts,   timestamp, "case {idx} [{period_str}]: timestamp mismatch");
-        assert_eq!(got_ver,  version,   "case {idx} [{period_str}]: version mismatch");
-        assert_eq!(got_fee,  0i128,     "case {idx} [{period_str}]: fee_paid must be 0 (no fees configured)");
+        assert_eq!(got_root, root, "case {idx} [{period_str}]: root mismatch");
+        assert_eq!(
+            got_ts, timestamp,
+            "case {idx} [{period_str}]: timestamp mismatch"
+        );
+        assert_eq!(
+            got_ver, version,
+            "case {idx} [{period_str}]: version mismatch"
+        );
+        assert_eq!(
+            got_fee, 0i128,
+            "case {idx} [{period_str}]: fee_paid must be 0 (no fees configured)"
+        );
 
         // P5: Count after first submit is exactly 1.
         assert_eq!(
@@ -344,10 +358,10 @@ fn prop_data_integrity_and_counter_monotonicity() {
 
 /// (submitted_root, wrong_root_a, wrong_root_b)
 const VERIFY_CASES: &[([u8; 32], [u8; 32], [u8; 32])] = &[
-    ([1u8; 32],   [2u8; 32],   [0u8; 32]),
+    ([1u8; 32], [2u8; 32], [0u8; 32]),
     ([255u8; 32], [254u8; 32], [128u8; 32]),
-    ([0u8; 32],   [1u8; 32],   [255u8; 32]),
-    ([42u8; 32],  [43u8; 32],  [41u8; 32]),
+    ([0u8; 32], [1u8; 32], [255u8; 32]),
+    ([42u8; 32], [43u8; 32], [41u8; 32]),
 ];
 
 /// P6: verify returns true only for the exact submitted root.
@@ -358,8 +372,8 @@ fn prop_verify_consistency() {
         let business = Address::generate(&env);
         let period = String::from_str(&env, "2026-01");
         let submitted_root = BytesN::from_array(&env, &sub_bytes);
-        let wrong_root_a   = BytesN::from_array(&env, &wrong_a);
-        let wrong_root_b   = BytesN::from_array(&env, &wrong_b);
+        let wrong_root_a = BytesN::from_array(&env, &wrong_a);
+        let wrong_root_b = BytesN::from_array(&env, &wrong_b);
 
         // Before submit: verify must return false for any root.
         assert!(
@@ -483,8 +497,9 @@ fn prop_duplicate_attestation_panics() {
             client.submit_attestation(&business, &period, &root, &2_000_000, &2);
         });
 
-        let err = result
-            .expect_err(&std::format!("period '{period_str}': duplicate submission must panic"));
+        let err = result.expect_err(&std::format!(
+            "period '{period_str}': duplicate submission must panic"
+        ));
         let msg = panic_message(&err);
         assert!(
             msg.contains("attestation already exists"),
@@ -524,10 +539,15 @@ fn prop_migration_succeeds_for_increasing_version() {
         client.submit_attestation(&business, &period, &old_root, &1_000_000, &old_ver);
         client.migrate_attestation(&admin, &business, &period, &new_root, &new_ver);
 
-        let (got_root, _, got_ver, _) =
-            client.get_attestation(&business, &period).unwrap();
-        assert_eq!(got_root, new_root, "old={old_ver}, new={new_ver}: root must be updated");
-        assert_eq!(got_ver,  new_ver,  "old={old_ver}, new={new_ver}: version must be updated");
+        let (got_root, _, got_ver, _) = client.get_attestation(&business, &period).unwrap();
+        assert_eq!(
+            got_root, new_root,
+            "old={old_ver}, new={new_ver}: root must be updated"
+        );
+        assert_eq!(
+            got_ver, new_ver,
+            "old={old_ver}, new={new_ver}: version must be updated"
+        );
     }
 }
 
@@ -601,9 +621,7 @@ fn prop_tier_discount_over_bound_panics() {
             client.set_tier_discount(&0u32, &discount);
         });
 
-        let err = result.expect_err(&std::format!(
-            "set_tier_discount({discount}) must panic"
-        ));
+        let err = result.expect_err(&std::format!("set_tier_discount({discount}) must panic"));
         let msg = panic_message(&err);
         assert!(
             msg.contains("discount cannot exceed 10 000 bps"),
@@ -625,11 +643,11 @@ fn prop_tier_discount_over_bound_panics() {
 fn prop_volume_brackets_valid_configs() {
     // (thresholds_slice, discounts_slice)
     let valid_configs: &[(&[u64], &[u32])] = &[
-        (&[],              &[]),                   // empty — valid
-        (&[1],             &[500]),                // single bracket
-        (&[1, 2],          &[500, 1_000]),         // minimal two-bracket
-        (&[10, 50, 100],   &[500, 1_000, 2_000]),  // typical three-bracket
-        (&[1, 2, u64::MAX],&[0, 0, 10_000]),       // max-u64 threshold
+        (&[], &[]),                             // empty — valid
+        (&[1], &[500]),                         // single bracket
+        (&[1, 2], &[500, 1_000]),               // minimal two-bracket
+        (&[10, 50, 100], &[500, 1_000, 2_000]), // typical three-bracket
+        (&[1, 2, u64::MAX], &[0, 0, 10_000]),   // max-u64 threshold
     ];
 
     for (idx, &(thresholds, discounts)) in valid_configs.iter().enumerate() {
@@ -702,9 +720,9 @@ fn prop_volume_brackets_unordered_panics() {
 #[test]
 fn prop_volume_brackets_length_mismatch_panics() {
     let mismatched: &[(&[u64], &[u32])] = &[
-        (&[10, 20], &[500]),          // 2 thresholds, 1 discount
-        (&[10],     &[500, 1_000]),   // 1 threshold, 2 discounts
-        (&[],       &[500]),          // empty thresholds, 1 discount
+        (&[10, 20], &[500]),    // 2 thresholds, 1 discount
+        (&[10], &[500, 1_000]), // 1 threshold, 2 discounts
+        (&[], &[500]),          // empty thresholds, 1 discount
     ];
 
     for &(thresholds, discounts) in mismatched {
@@ -736,7 +754,8 @@ fn prop_volume_brackets_length_mismatch_panics() {
 
         result.expect_err(&std::format!(
             "mismatched lengths thresholds={:?} discounts={:?} must panic",
-            thresholds, discounts
+            thresholds,
+            discounts
         ));
     }
 }
@@ -768,7 +787,11 @@ fn prop_business_isolation() {
         client.get_attestation(&biz_c, &period).is_none(),
         "biz_c must not have an attestation"
     );
-    assert_eq!(client.get_business_count(&biz_c), 0, "biz_c count must be 0");
+    assert_eq!(
+        client.get_business_count(&biz_c),
+        0,
+        "biz_c count must be 0"
+    );
     assert!(
         !client.verify_attestation(&biz_c, &period, &root_a),
         "verify for biz_c must be false"
@@ -791,8 +814,11 @@ fn prop_business_isolation() {
     client.revoke_attestation(&admin, &biz_a, &period, &reason);
 
     // Revocation of biz_a must not affect biz_b.
-    assert!(client.is_revoked(&biz_a, &period),  "biz_a must be revoked");
-    assert!(!client.is_revoked(&biz_b, &period), "biz_b must NOT be revoked");
+    assert!(client.is_revoked(&biz_a, &period), "biz_a must be revoked");
+    assert!(
+        !client.is_revoked(&biz_b, &period),
+        "biz_b must NOT be revoked"
+    );
     assert!(
         !client.verify_attestation(&biz_a, &period, &root_a),
         "biz_a verify must be false after revocation"
@@ -883,13 +909,13 @@ fn prop_unpause_restores_submission() {
 /// volume_threshold is the number of "warm-up" submissions to make before
 /// the test submission, so the volume discount bracket is active.
 const FEE_QUOTE_CASES: &[(i128, u32, u64, u32)] = &[
-    (1_000_000, 0,     0,  0),        // flat fee, no discounts
-    (1_000_000, 2_000, 0,  0),        // tier discount only
-    (1_000_000, 0,     5,  500),      // volume discount only
-    (1_000_000, 2_000, 5,  1_000),    // combined tier + volume
-    (500_000,   1_000, 3,  500),      // different base fee
-    (100_000,   5_000, 10, 2_000),    // high tier discount
-    (0,         0,     0,  0),        // zero base fee → fee must be 0
+    (1_000_000, 0, 0, 0),         // flat fee, no discounts
+    (1_000_000, 2_000, 0, 0),     // tier discount only
+    (1_000_000, 0, 5, 500),       // volume discount only
+    (1_000_000, 2_000, 5, 1_000), // combined tier + volume
+    (500_000, 1_000, 3, 500),     // different base fee
+    (100_000, 5_000, 10, 2_000),  // high tier discount
+    (0, 0, 0, 0),                 // zero base fee → fee must be 0
 ];
 
 /// P14: `get_fee_quote` before submission equals actual token deduction.
@@ -908,7 +934,7 @@ fn prop_fee_quote_matches_actual_charge() {
         // Configure volume discount bracket.
         if vol_threshold > 0 {
             let thresholds = vec![&env, vol_threshold];
-            let discounts  = vec![&env, vol_disc];
+            let discounts = vec![&env, vol_disc];
             client.set_volume_brackets(&thresholds, &discounts);
         }
 
@@ -920,19 +946,19 @@ fn prop_fee_quote_matches_actual_charge() {
         // Each uses a unique period so there's no duplicate-submission panic.
         for i in 0..vol_threshold {
             let warm_period = String::from_str(&env, &std::format!("WARM-{i:05}"));
-            let warm_root   = BytesN::from_array(&env, &[i as u8; 32]);
+            let warm_root = BytesN::from_array(&env, &[i as u8; 32]);
             client.submit_attestation(&business, &warm_period, &warm_root, &1, &1);
         }
 
         // Capture quote and balance immediately before the test submission.
-        let quote  = client.get_fee_quote(&business);
+        let quote = client.get_fee_quote(&business);
         let before = token_balance(&env, &token_addr, &business);
 
         let test_period = String::from_str(&env, "TEST-FINAL");
-        let test_root   = BytesN::from_array(&env, &[99u8; 32]);
+        let test_root = BytesN::from_array(&env, &[99u8; 32]);
         client.submit_attestation(&business, &test_period, &test_root, &1_000_000, &1);
 
-        let after   = token_balance(&env, &token_addr, &business);
+        let after = token_balance(&env, &token_addr, &business);
         let charged = before - after;
 
         // P14-a: Quote matches balance deduction.
