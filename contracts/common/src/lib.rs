@@ -6,8 +6,6 @@ pub mod merkle;
 #[cfg(test)]
 pub mod merkle_test;
 
-#![cfg_attr(not(test), no_std)]
-
 pub mod governance_gating;
 pub mod key_rotation;
 

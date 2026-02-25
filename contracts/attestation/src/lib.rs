@@ -1,6 +1,6 @@
 #![no_std]
 use core::cmp::Ordering;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 const STATUS_KEY_TAG: u32 = 1;
 const ADMIN_KEY_TAG: (u32,) = (2,);
@@ -9,8 +9,6 @@ const QUERY_LIMIT_MAX: u32 = 30;
 pub const STATUS_ACTIVE: u32 = 0;
 pub const STATUS_REVOKED: u32 = 1;
 pub const STATUS_FILTER_ALL: u32 = 2;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 // Type aliases to reduce complexity - exported for other contracts
 pub type AttestationData = (BytesN<32>, u64, u32, i128, Option<u64>);
@@ -71,7 +69,6 @@ pub mod dispute;
 mod registry_test;
 
 const ANOMALY_KEY_TAG: u32 = 1;
-const ADMIN_KEY_TAG: (u32,) = (2,);
 const AUTHORIZED_KEY_TAG: u32 = 3;
 const ANOMALY_SCORE_MAX: u32 = 100;
 
@@ -993,7 +990,6 @@ mod query_pagination_test;
     pub fn get_anomaly(env: Env, business: Address, period: String) -> Option<(u32, u32)> {
         let key = (ANOMALY_KEY_TAG, business, period);
         env.storage().instance().get(&key)
-        results
     }
 
     // ── Multisig Operations ─────────────────────────────────────────
