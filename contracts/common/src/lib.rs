@@ -1,4 +1,10 @@
-//! Shared test utilities and security invariant tests for Veritasor contracts.
+#![cfg_attr(not(test), no_std)]
+//! Shared utilities and security invariant tests for Veritasor contracts.
+
+pub mod merkle;
+
+#[cfg(test)]
+pub mod merkle_test;
 
 #![cfg_attr(not(test), no_std)]
 
