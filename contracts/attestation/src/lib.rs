@@ -2,7 +2,7 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 // Type aliases to reduce complexity - exported for other contracts
-pub type AttestationData = (BytesN<32>, u64, u32, i128);
+pub type AttestationData = (BytesN<32>, u64, u32, i128, Option<u64>);
 pub type RevocationData = (Address, u64, String);
 pub type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
 #[allow(dead_code)]
