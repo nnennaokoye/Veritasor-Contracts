@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -27,6 +28,11 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
           target: wasm32-unknown-unknown
       
       - name: Cache cargo registry
@@ -36,10 +42,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_STABLE || 'stable' }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+          fail-on-cache-miss: false
+      
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -82,10 +90,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_STABLE || 'stable' }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+          fail-on-cache-miss: false
       
       - name: Build attestation WASM
         run: cargo build --release -p veritasor-attestation --target wasm32-unknown-unknown
@@ -122,10 +131,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_STABLE || 'stable' }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+          fail-on-cache-miss: false
       
       - name: Build attestation WASM
         run: cargo build --release -p veritasor-attestation --target wasm32-unknown-unknown
