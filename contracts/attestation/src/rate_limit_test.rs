@@ -23,7 +23,7 @@ fn setup() -> (Env, AttestationContractClient<'static>, Address) {
     let contract_id = env.register(AttestationContract, ());
     let client = AttestationContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    client.initialize(&admin);
+    client.initialize(&admin, &0u64);
     (env, client, admin)
 }
 
@@ -45,7 +45,16 @@ fn set_ledger_timestamp(env: &Env, ts: u64) {
 fn submit(env: &Env, client: &AttestationContractClient, business: &Address, index: u32) {
     let period = String::from_str(env, &std::format!("2026-{:02}", index));
     let root = BytesN::from_array(env, &[index as u8; 32]);
-    client.submit_attestation(business, &period, &root, &1_700_000_000u64, &1u32, &None);
+    let nonce = client.get_replay_nonce(business, &crate::NONCE_CHANNEL_BUSINESS);
+    client.submit_attestation(
+        business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &nonce,
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -59,8 +68,8 @@ fn test_configure_rate_limit() {
     // Initially no config.
     assert!(client.get_rate_limit_config().is_none());
 
-    // Configure.
-    client.configure_rate_limit(&5u32, &3600u64, &true);
+    // Configure (first admin op after init → nonce 1).
+    client.configure_rate_limit(&5u32, &3600u64, &true, &1u64);
 
     let config = client.get_rate_limit_config().unwrap();
     assert_eq!(config.max_submissions, 5);
@@ -72,8 +81,8 @@ fn test_configure_rate_limit() {
 fn test_configure_rate_limit_update() {
     let (_env, client, _admin) = setup();
 
-    client.configure_rate_limit(&5u32, &3600u64, &true);
-    client.configure_rate_limit(&10u32, &7200u64, &false);
+    client.configure_rate_limit(&5u32, &3600u64, &true, &1u64);
+    client.configure_rate_limit(&10u32, &7200u64, &false, &2u64);
 
     let config = client.get_rate_limit_config().unwrap();
     assert_eq!(config.max_submissions, 10);
@@ -85,14 +94,14 @@ fn test_configure_rate_limit_update() {
 #[should_panic(expected = "max_submissions must be greater than zero")]
 fn test_configure_zero_max_submissions_rejected() {
     let (_env, client, _admin) = setup();
-    client.configure_rate_limit(&0u32, &3600u64, &true);
+    client.configure_rate_limit(&0u32, &3600u64, &true, &1u64);
 }
 
 #[test]
 #[should_panic(expected = "window_seconds must be greater than zero")]
 fn test_configure_zero_window_rejected() {
     let (_env, client, _admin) = setup();
-    client.configure_rate_limit(&5u32, &0u64, &true);
+    client.configure_rate_limit(&5u32, &0u64, &true, &1u64);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -104,7 +113,7 @@ fn test_submit_within_limit() {
     let (env, client, _admin) = setup();
 
     // Allow 3 submissions per 3600s window.
-    client.configure_rate_limit(&3u32, &3600u64, &true);
+    client.configure_rate_limit(&3u32, &3600u64, &true, &1u64);
     set_ledger_timestamp(&env, 1_000_000);
 
     let business = Address::generate(&env);
@@ -122,7 +131,7 @@ fn test_submit_within_limit() {
 fn test_submit_exceeds_limit() {
     let (env, client, _admin) = setup();
 
-    client.configure_rate_limit(&2u32, &3600u64, &true);
+    client.configure_rate_limit(&2u32, &3600u64, &true, &1u64);
     set_ledger_timestamp(&env, 1_000_000);
 
     let business = Address::generate(&env);
@@ -138,7 +147,7 @@ fn test_boundary_at_exact_limit() {
     let (env, client, _admin) = setup();
 
     // max = 2: exactly 2 should succeed.
-    client.configure_rate_limit(&2u32, &3600u64, &true);
+    client.configure_rate_limit(&2u32, &3600u64, &true, &1u64);
     set_ledger_timestamp(&env, 1_000_000);
 
     let business = Address::generate(&env);
@@ -156,7 +165,7 @@ fn test_window_expiry_allows_new_submissions() {
     let (env, client, _admin) = setup();
 
     // 2 max, 100s window.
-    client.configure_rate_limit(&2u32, &100u64, &true);
+    client.configure_rate_limit(&2u32, &100u64, &true, &1u64);
 
     let business = Address::generate(&env);
 
@@ -177,7 +186,7 @@ fn test_partial_window_expiry() {
     let (env, client, _admin) = setup();
 
     // 3 max, 100s window.
-    client.configure_rate_limit(&3u32, &100u64, &true);
+    client.configure_rate_limit(&3u32, &100u64, &true, &1u64);
 
     let business = Address::generate(&env);
 
@@ -210,7 +219,7 @@ fn test_partial_window_expiry() {
 fn test_multiple_businesses_independent() {
     let (env, client, _admin) = setup();
 
-    client.configure_rate_limit(&2u32, &3600u64, &true);
+    client.configure_rate_limit(&2u32, &3600u64, &true, &1u64);
     set_ledger_timestamp(&env, 1_000_000);
 
     let biz_a = Address::generate(&env);
@@ -251,7 +260,7 @@ fn test_rate_limit_disabled() {
     let (env, client, _admin) = setup();
 
     // Configured but disabled.
-    client.configure_rate_limit(&1u32, &3600u64, &false);
+    client.configure_rate_limit(&1u32, &3600u64, &false, &1u64);
     set_ledger_timestamp(&env, 1_000_000);
 
     let business = Address::generate(&env);
@@ -271,11 +280,11 @@ fn test_disable_after_enable_allows_submits() {
     let business = Address::generate(&env);
 
     // Enable strict limit.
-    client.configure_rate_limit(&1u32, &3600u64, &true);
+    client.configure_rate_limit(&1u32, &3600u64, &true, &1u64);
     submit(&env, &client, &business, 1);
 
-    // Disable rate limiting.
-    client.configure_rate_limit(&1u32, &3600u64, &false);
+    // Disable rate limiting (second admin op → nonce 2).
+    client.configure_rate_limit(&1u32, &3600u64, &false, &2u64);
     // Now unlimited.
     submit(&env, &client, &business, 2);
     submit(&env, &client, &business, 3);
@@ -298,7 +307,7 @@ fn test_submission_window_count_without_config() {
 fn test_submission_window_count_reflects_window() {
     let (env, client, _admin) = setup();
 
-    client.configure_rate_limit(&10u32, &100u64, &true);
+    client.configure_rate_limit(&10u32, &100u64, &true, &1u64);
 
     let business = Address::generate(&env);
 

@@ -29,7 +29,7 @@ fn setup_with_attestation() -> (
     let admin = Address::generate(&env);
     let att_id = env.register(AttestationContract, ());
     let att_client = AttestationContractClient::new(&env, &att_id);
-    att_client.initialize(&admin);
+    att_client.initialize(&admin, &0u64);
 
     let snap_id = env.register(AttestationSnapshotContract, ());
     let snap_client = AttestationSnapshotContractClient::new(&env, &snap_id);
@@ -124,7 +124,15 @@ fn test_record_with_attestation_required_succeeds_when_attestation_exists() {
     let (env, snap_client, att_client, admin, business) = setup_with_attestation();
     let period = String::from_str(&env, "2026-02");
     let root = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    att_client.submit_attestation(&business, &period, &root, &1700000000u64, &1u32, &None);
+    att_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1700000000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
     snap_client.record_snapshot(&admin, &business, &period, &100_000i128, &0u32, &1u64);
     let record = snap_client.get_snapshot(&business, &period).unwrap();
     assert_eq!(record.trailing_revenue, 100_000i128);
@@ -144,8 +152,22 @@ fn test_record_with_attestation_required_panics_when_revoked() {
     let (env, snap_client, att_client, admin, business) = setup_with_attestation();
     let period = String::from_str(&env, "2026-02");
     let root = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    att_client.submit_attestation(&business, &period, &root, &1700000000u64, &1u32, &None);
-    att_client.revoke_attestation(&admin, &business, &period, &String::from_str(&env, "fraud"));
+    att_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1700000000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
+    att_client.revoke_attestation(
+        &admin,
+        &business,
+        &period,
+        &String::from_str(&env, "fraud"),
+        &1u64,
+    );
     snap_client.record_snapshot(&admin, &business, &period, &100_000i128, &0u32, &1u64);
 }
 

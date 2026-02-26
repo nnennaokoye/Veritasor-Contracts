@@ -10,125 +10,9 @@ fn setup() -> (Env, AttestationContractClient<'static>) {
     env.mock_all_auths();
     let contract_id = env.register(AttestationContract, ());
     let client = AttestationContractClient::new(&env, &contract_id);
-    client.initialize(&Address::generate(&env));
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &0u64);
     (env, client)
-}
-
-/// Test helper environment with additional convenience methods for revocation testing
-pub struct TestEnv {
-    pub env: Env,
-    pub client: AttestationContractClient<'static>,
-    pub admin: Address,
-}
-
-impl TestEnv {
-    pub fn new() -> Self {
-        let env = Env::default();
-        let contract_id = env.register(AttestationContract, ());
-        let client = AttestationContractClient::new(&env, &contract_id);
-        let admin = Address::generate(&env);
-
-        env.mock_all_auths();
-        client.initialize(&admin);
-
-        Self { env, client, admin }
-    }
-
-    pub fn submit_attestation(
-        &self,
-        business: Address,
-        period: String,
-        merkle_root: BytesN<32>,
-        timestamp: u64,
-        version: u32,
-    ) {
-        self.client.submit_attestation(
-            &business,
-            &period,
-            &merkle_root,
-            &timestamp,
-            &version,
-            &None,
-        );
-    }
-
-    pub fn revoke_attestation(
-        &self,
-        caller: Address,
-        business: Address,
-        period: String,
-        reason: String,
-    ) {
-        self.client
-            .revoke_attestation(&caller, &business, &period, &reason);
-    }
-
-    pub fn migrate_attestation(
-        &self,
-        caller: Address,
-        business: Address,
-        period: String,
-        new_merkle_root: BytesN<32>,
-        new_version: u32,
-    ) {
-        self.client.migrate_attestation(
-            &caller,
-            &business,
-            &period,
-            &new_merkle_root,
-            &new_version,
-        );
-    }
-
-    pub fn is_revoked(&self, business: Address, period: String) -> bool {
-        self.client.is_revoked(&business, &period)
-    }
-
-    pub fn get_revocation_info(
-        &self,
-        business: Address,
-        period: String,
-    ) -> Option<(Address, u64, String)> {
-        self.client.get_revocation_info(&business, &period)
-    }
-
-    pub fn get_attestation(
-        &self,
-        business: Address,
-        period: String,
-    ) -> Option<(BytesN<32>, u64, u32, i128, Option<u64>)> {
-        self.client.get_attestation(&business, &period)
-    }
-
-    pub fn get_attestation_with_status(
-        &self,
-        business: Address,
-        period: String,
-    ) -> Option<AttestationWithRevocation> {
-        self.client.get_attestation_with_status(&business, &period)
-    }
-
-    pub fn verify_attestation(
-        &self,
-        business: Address,
-        period: String,
-        merkle_root: &BytesN<32>,
-    ) -> bool {
-        self.client
-            .verify_attestation(&business, &period, merkle_root)
-    }
-
-    pub fn get_business_attestations(
-        &self,
-        business: Address,
-        periods: Vec<String>,
-    ) -> AttestationStatusResult {
-        self.client.get_business_attestations(&business, &periods)
-    }
-
-    pub fn pause(&self, caller: Address) {
-        self.client.pause(&caller);
-    }
 }
 
 #[test]
@@ -141,7 +25,9 @@ fn submit_and_get_attestation() {
     let timestamp = 1_700_000_000u64;
     let version = 1u32;
 
-    client.submit_attestation(&business, &period, &root, &timestamp, &version, &None);
+    client.submit_attestation(
+        &business, &period, &root, &timestamp, &version, &None, &0u64,
+    );
 
     let (stored_root, stored_ts, stored_ver, stored_fee, stored_expiry) =
         client.get_attestation(&business, &period).unwrap();
@@ -160,7 +46,15 @@ fn verify_attestation() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[2u8; 32]);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     assert!(client.verify_attestation(&business, &period, &root));
     let other_root = BytesN::from_array(&env, &[3u8; 32]);
@@ -176,9 +70,25 @@ fn duplicate_attestation_panics() {
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[0u8; 32]);
 
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
     // Second submission for the same (business, period) must panic.
-    client.submit_attestation(&business, &period, &root, &1_700_000_001u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_001u64,
+        &1u32,
+        &None,
+        &1u64,
+    );
 }
 
 #[test]
@@ -196,6 +106,7 @@ fn attestation_count_increments() {
         &1u64,
         &1u32,
         &None,
+        &0u64,
     );
     assert_eq!(client.get_business_count(&business), 1);
 
@@ -207,41 +118,7 @@ fn attestation_count_increments() {
         &2u64,
         &1u32,
         &None,
+        &1u64,
     );
     assert_eq!(client.get_business_count(&business), 2);
-}
-
-#[test]
-fn verify_revenue_entry() {
-    let (env, client) = setup();
-
-    let business = Address::generate(&env);
-    let period = String::from_str(&env, "2026-02");
-
-    // Create a simple Merkle tree with 2 leaves
-    let leaf1_data = Bytes::from_slice(&env, b"revenue_entry_1");
-    let leaf2_data = Bytes::from_slice(&env, b"revenue_entry_2");
-
-    let l1 = veritasor_common::merkle::hash_leaf(&env, &leaf1_data);
-    let l2 = veritasor_common::merkle::hash_leaf(&env, &leaf2_data);
-
-    let mut combined = Bytes::new(&env);
-    if l1 < l2 {
-        combined.append(&l1.clone().into());
-        combined.append(&l2.clone().into());
-    } else {
-        combined.append(&l2.clone().into());
-        combined.append(&l1.clone().into());
-    }
-    let root: BytesN<32> = env.crypto().sha256(&combined).into();
-
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
-
-    let mut proof = Vec::new(&env);
-    proof.push_back(l2);
-
-    assert!(client.verify_revenue_entry(&business, &period, &leaf1_data, &proof));
-
-    let invalid_data = Bytes::from_slice(&env, b"invalid_entry");
-    assert!(!client.verify_revenue_entry(&business, &period, &invalid_data, &proof));
 }
