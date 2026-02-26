@@ -2,6 +2,21 @@
 use core::cmp::Ordering;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec};
 
+/// Attestor staking client: WASM import for wasm32, crate client for host builds.
+#[cfg(target_arch = "wasm32")]
+mod attestor_staking_import {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/veritasor_attestor_staking.wasm"
+    );
+    pub use Client as AttestorStakingContractClient;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+use veritasor_attestor_staking::AttestorStakingContractClient;
+
+#[cfg(target_arch = "wasm32")]
+use attestor_staking_import::AttestorStakingContractClient;
+
 const STATUS_KEY_TAG: u32 = 1;
 const ADMIN_KEY_TAG: (u32,) = (2,);
 const QUERY_LIMIT_MAX: u32 = 30;
@@ -43,6 +58,8 @@ pub use dispute::{Dispute, DisputeOutcome, DisputeStatus, DisputeType};
 mod access_control_test;
 #[cfg(test)]
 mod anomaly_test;
+#[cfg(test)]
+mod attestor_staking_integration_test;
 #[cfg(test)]
 mod batch_submission_test;
 #[cfg(test)]
@@ -235,6 +252,23 @@ impl AttestationContract {
             enabled,
             &admin,
         );
+    }
+
+    // ── Attestor staking integration ───────────────────────────────
+
+    /// Set the attestor staking contract address.
+    ///
+    /// Only ADMIN may call.
+    pub fn set_attestor_staking_contract(env: Env, caller: Address, staking_contract: Address) {
+        access_control::require_admin(&env, &caller);
+        env.storage()
+            .instance()
+            .set(&DataKey::AttestorStakingContract, &staking_contract);
+    }
+
+    /// Get the configured attestor staking contract address (if set).
+    pub fn get_attestor_staking_contract(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::AttestorStakingContract)
     }
 
     // ── Role-Based Access Control ───────────────────────────────────
@@ -520,6 +554,94 @@ impl AttestationContract {
         }
     }
 
+    /// Submit multiple attestations in a single atomic transaction as an attestor.
+    ///
+    /// The caller must hold `ROLE_ATTESTOR` and meet the minimum stake requirement
+    /// in the configured attestor staking contract.
+    pub fn submit_batch_as_attestor(
+        env: Env,
+        attestor: Address,
+        items: Vec<BatchAttestationItem>,
+    ) {
+        access_control::require_not_paused(&env);
+        access_control::require_attestor(&env, &attestor);
+
+        let staking_contract: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::AttestorStakingContract)
+            .expect("attestor staking contract not configured");
+        let staking_client = AttestorStakingContractClient::new(&env, &staking_contract);
+        assert!(
+            staking_client.is_eligible(&attestor),
+            "attestor does not meet minimum stake"
+        );
+
+        assert!(!items.is_empty(), "batch cannot be empty");
+        let len = items.len();
+
+        // Phase 1: Validate all items before making any state changes (atomic validation)
+        for i in 0..len {
+            let item = items.get(i).unwrap();
+
+            // Registry gate: if the business is registered, it must be Active.
+            if registry::get_business(&env, &item.business).is_some() {
+                assert!(
+                    registry::is_active(&env, &item.business),
+                    "business is not active in the registry"
+                );
+            }
+
+            rate_limit::check_rate_limit(&env, &item.business);
+
+            // Check for duplicates within the batch itself
+            for j in (i + 1)..len {
+                let other_item = items.get(j).unwrap();
+                if item.business == other_item.business && item.period == other_item.period {
+                    panic!("duplicate attestation in batch: same business and period at indices {i} and {j}");
+                }
+            }
+
+            // Check for duplicate attestations in storage
+            let key = DataKey::Attestation(item.business.clone(), item.period.clone());
+            if env.storage().instance().has(&key) {
+                panic!("attestation already exists for business and period at index {i}");
+            }
+        }
+
+        // Phase 2: Process all items (all validations passed)
+        for i in 0..len {
+            let item = items.get(i).unwrap();
+
+            let fee_paid = dynamic_fees::collect_fee_from(&env, &attestor, &item.business);
+            dynamic_fees::increment_business_count(&env, &item.business);
+
+            let key = DataKey::Attestation(item.business.clone(), item.period.clone());
+            let data = (
+                item.merkle_root.clone(),
+                item.timestamp,
+                item.version,
+                fee_paid,
+                item.expiry_timestamp,
+            );
+            env.storage().instance().set(&key, &data);
+            let status_key = (STATUS_KEY_TAG, item.business.clone(), item.period.clone());
+            env.storage().instance().set(&status_key, &STATUS_ACTIVE);
+
+            rate_limit::record_submission(&env, &item.business);
+
+            events::emit_attestation_submitted(
+                &env,
+                &item.business,
+                &item.period,
+                &item.merkle_root,
+                item.timestamp,
+                item.version,
+                fee_paid,
+            );
+        }
+    }
+
     /// Submit a revenue attestation.
     ///
     /// Stores the Merkle root, timestamp, and version for the given
@@ -585,6 +707,76 @@ impl AttestationContract {
         rate_limit::record_submission(&env, &business);
 
         // Emit event
+        events::emit_attestation_submitted(
+            &env,
+            &business,
+            &period,
+            &merkle_root,
+            timestamp,
+            version,
+            fee_paid,
+        );
+    }
+
+    /// Submit a revenue attestation as an attestor.
+    ///
+    /// The caller must hold `ROLE_ATTESTOR` and meet the minimum stake requirement
+    /// in the configured attestor staking contract.
+    pub fn submit_attestation_as_attestor(
+        env: Env,
+        attestor: Address,
+        business: Address,
+        period: String,
+        merkle_root: BytesN<32>,
+        timestamp: u64,
+        version: u32,
+        expiry_timestamp: Option<u64>,
+    ) {
+        access_control::require_not_paused(&env);
+        access_control::require_attestor(&env, &attestor);
+
+        let staking_contract: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::AttestorStakingContract)
+            .expect("attestor staking contract not configured");
+        let staking_client = AttestorStakingContractClient::new(&env, &staking_contract);
+        assert!(
+            staking_client.is_eligible(&attestor),
+            "attestor does not meet minimum stake"
+        );
+
+        // Registry gate: if the business is registered, it must be Active.
+        // Unregistered addresses are still allowed (backward-compatible).
+        if registry::get_business(&env, &business).is_some() {
+            assert!(
+                registry::is_active(&env, &business),
+                "business is not active in the registry"
+            );
+        }
+        rate_limit::check_rate_limit(&env, &business);
+
+        let key = DataKey::Attestation(business.clone(), period.clone());
+        if env.storage().instance().has(&key) {
+            panic!("attestation already exists for this business and period");
+        }
+
+        let fee_paid = dynamic_fees::collect_fee_from(&env, &attestor, &business);
+        dynamic_fees::increment_business_count(&env, &business);
+
+        let data = (
+            merkle_root.clone(),
+            timestamp,
+            version,
+            fee_paid,
+            expiry_timestamp,
+        );
+        env.storage().instance().set(&key, &data);
+        let status_key = (STATUS_KEY_TAG, business.clone(), period.clone());
+        env.storage().instance().set(&status_key, &STATUS_ACTIVE);
+
+        rate_limit::record_submission(&env, &business);
+
         events::emit_attestation_submitted(
             &env,
             &business,
@@ -695,13 +887,14 @@ impl AttestationContract {
         let revocation_data = (caller.clone(), env.ledger().timestamp(), reason.clone());
         env.storage().instance().set(&revoked_key, &revocation_data);
 
+        // Keep status key in sync for pagination/filtering.
+        let status_key = (STATUS_KEY_TAG, business.clone(), period.clone());
+        env.storage().instance().set(&status_key, &STATUS_REVOKED);
+
         events::emit_attestation_revoked(&env, &business, &period, &caller, &reason);
     }
 
     /// Migrate an attestation to a new version.
-    ///
-    /// Only ADMIN role can migrate attestations. This updates the merkle root
-    /// and version while preserving the audit trail.
     pub fn migrate_attestation(
         env: Env,
         caller: Address,
@@ -1361,57 +1554,59 @@ impl AttestationContract {
     // ── Dispute Methods ─────────────────────────────────────────────
 
     /// Open a dispute against an attestation. Challenger must authorize.
-    pub fn open_dispute(
-        env: Env,
-        challenger: Address,
-        business: Address,
-        period: String,
-        dispute_type: DisputeType,
-        evidence: String,
-    ) -> u64 {
-        challenger.require_auth();
-        dispute::validate_dispute_eligibility(&env, &challenger, &business, &period);
-        let dispute_id = dispute::generate_dispute_id(&env);
-        let d = Dispute {
-            id: dispute_id,
-            challenger: challenger.clone(),
-            business: business.clone(),
-            period: period.clone(),
-            status: DisputeStatus::Open,
-            dispute_type,
-            evidence,
-            timestamp: env.ledger().timestamp(),
-            resolution: dispute::MaybeResolution::None,
-        };
-        dispute::store_dispute(&env, &d);
-        dispute::add_dispute_to_attestation_index(&env, &business, &period, dispute_id);
-        dispute::add_dispute_to_challenger_index(&env, &challenger, dispute_id);
-        dispute_id
-    }
+     pub fn open_dispute(
+         env: Env,
+         challenger: Address,
+         business: Address,
+         period: String,
+         dispute_type: DisputeType,
+         evidence: String,
+     ) -> u64 {
+         challenger.require_auth();
+         dispute::validate_dispute_eligibility(&env, &challenger, &business, &period)
+             .expect("dispute not eligible");
+         let dispute_id = dispute::generate_dispute_id(&env);
+         let d = Dispute {
+             id: dispute_id,
+             challenger: challenger.clone(),
+             business: business.clone(),
+             period: period.clone(),
+             status: DisputeStatus::Open,
+             dispute_type,
+             evidence,
+             timestamp: env.ledger().timestamp(),
+             resolution: dispute::MaybeResolution::None,
+         };
+         dispute::store_dispute(&env, &d);
+         dispute::add_dispute_to_attestation_index(&env, &business, &period, dispute_id);
+         dispute::add_dispute_to_challenger_index(&env, &challenger, dispute_id);
+         dispute_id
+     }
 
-    /// Resolve an open dispute. Caller must be admin.
-    pub fn resolve_dispute(
-        env: Env,
-        dispute_id: u64,
-        resolver: Address,
-        outcome: DisputeOutcome,
-        notes: String,
-    ) {
-        resolver.require_auth();
-        dispute::validate_dispute_resolution(&env, dispute_id, &resolver).ok();
-        let resolution = dispute::DisputeResolution {
-            resolver,
-            outcome,
-            timestamp: env.ledger().timestamp(),
-            notes,
-        };
-        dispute::store_dispute_resolution(&env, dispute_id, &resolution);
-        if let Some(mut d) = dispute::get_dispute(&env, dispute_id) {
-            d.status = DisputeStatus::Resolved;
-            d.resolution = dispute::MaybeResolution::Some(resolution);
-            dispute::store_dispute(&env, &d);
-        }
-    }
+     /// Resolve an open dispute. Caller must be admin.
+     pub fn resolve_dispute(
+         env: Env,
+         dispute_id: u64,
+         resolver: Address,
+         outcome: DisputeOutcome,
+         notes: String,
+     ) {
+         access_control::require_admin(&env, &resolver);
+         dispute::validate_dispute_resolution(&env, dispute_id, &resolver)
+             .expect("invalid dispute resolution");
+         let resolution = dispute::DisputeResolution {
+             resolver,
+             outcome,
+             timestamp: env.ledger().timestamp(),
+             notes,
+         };
+         dispute::store_dispute_resolution(&env, dispute_id, &resolution);
+         if let Some(mut d) = dispute::get_dispute(&env, dispute_id) {
+             d.status = DisputeStatus::Resolved;
+             d.resolution = dispute::MaybeResolution::Some(resolution);
+             dispute::store_dispute(&env, &d);
+         }
+     }
 
     /// Close a resolved dispute.
     pub fn close_dispute(env: Env, dispute_id: u64) {
