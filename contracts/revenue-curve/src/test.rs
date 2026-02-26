@@ -23,7 +23,7 @@ fn setup(
     // Register and initialize attestation contract
     let attestation_id = env.register(AttestationContract, ());
     let attestation_client = AttestationContractClient::new(env, &attestation_id);
-    attestation_client.initialize(&admin);
+    attestation_client.initialize(&admin, &0u64);
 
     // Link attestation contract
     curve_client.set_attestation_contract(&admin, &attestation_id);
@@ -198,7 +198,15 @@ fn test_calculate_pricing_basic() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // Calculate pricing with zero risk
     let output = client.calculate_pricing(&business, &period, &500_000i128, &0u32);
@@ -221,7 +229,15 @@ fn test_calculate_pricing_with_risk() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // Calculate pricing with anomaly score of 50
     let output = client.calculate_pricing(&business, &period, &500_000i128, &50u32);
@@ -258,7 +274,15 @@ fn test_calculate_pricing_with_tier_discount() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // Revenue qualifies for tier 2 (1M+)
     let output = client.calculate_pricing(&business, &period, &1_500_000i128, &0u32);
@@ -281,7 +305,15 @@ fn test_calculate_pricing_max_cap() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // High anomaly score should cap at max_apr
     let output = client.calculate_pricing(&business, &period, &100_000i128, &100u32);
@@ -314,7 +346,15 @@ fn test_calculate_pricing_min_cap() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // Large discount should cap at min_apr
     let output = client.calculate_pricing(&business, &period, &5_000_000i128, &0u32);
@@ -352,11 +392,19 @@ fn test_calculate_pricing_revoked_attestation() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     // Revoke attestation
     let reason = String::from_str(&env, "fraud detected");
-    attestation_client.revoke_attestation(&admin, &business, &period, &reason);
+    attestation_client.revoke_attestation(&admin, &business, &period, &reason, &1u64);
 
     client.calculate_pricing(&business, &period, &500_000i128, &0u32);
 }
@@ -448,7 +496,15 @@ fn test_multiple_pricing_scenarios() {
     let business1 = Address::generate(&env);
     let period1 = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business1, &period1, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business1,
+        &period1,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
     let output1 = client.calculate_pricing(&business1, &period1, &100_000i128, &10u32);
     assert_eq!(output1.tier_level, 0);
     assert_eq!(output1.apr_bps, 1100); // 1000 + 100
@@ -456,7 +512,15 @@ fn test_multiple_pricing_scenarios() {
     // Scenario 2: Medium revenue, medium risk
     let business2 = Address::generate(&env);
     let period2 = String::from_str(&env, "2026-Q2");
-    attestation_client.submit_attestation(&business2, &period2, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business2,
+        &period2,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
     let output2 = client.calculate_pricing(&business2, &period2, &600_000i128, &30u32);
     assert_eq!(output2.tier_level, 2);
     assert_eq!(output2.apr_bps, 1200); // 1000 + 300 - 100
@@ -464,7 +528,15 @@ fn test_multiple_pricing_scenarios() {
     // Scenario 3: High revenue, high risk
     let business3 = Address::generate(&env);
     let period3 = String::from_str(&env, "2026-Q3");
-    attestation_client.submit_attestation(&business3, &period3, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business3,
+        &period3,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
     let output3 = client.calculate_pricing(&business3, &period3, &2_000_000i128, &80u32);
     assert_eq!(output3.tier_level, 3);
     assert_eq!(output3.apr_bps, 1600); // 1000 + 800 - 200
@@ -483,7 +555,15 @@ fn test_edge_case_zero_revenue() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let root = BytesN::from_array(&env, &[1u8; 32]);
-    attestation_client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    attestation_client.submit_attestation(
+        &business,
+        &period,
+        &root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+        &0u64,
+    );
 
     let output = client.calculate_pricing(&business, &period, &0i128, &0u32);
     assert_eq!(output.tier_level, 0);

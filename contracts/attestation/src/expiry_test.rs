@@ -10,7 +10,7 @@ fn setup() -> (Env, AttestationContractClient<'static>, Address) {
     let contract_id = env.register(AttestationContract, ());
     let client = AttestationContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    client.initialize(&admin);
+    client.initialize(&admin, &0u64);
     (env, client, admin)
 }
 
@@ -21,7 +21,7 @@ fn test_submit_attestation_without_expiry() {
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &None);
+    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &None, &0u64);
 
     let result = client.get_attestation(&business, &period);
     assert!(result.is_some());
@@ -47,6 +47,7 @@ fn test_submit_attestation_with_expiry() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     let result = client.get_attestation(&business, &period);
@@ -62,7 +63,7 @@ fn test_is_expired_returns_false_when_no_expiry() {
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &None);
+    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &None, &0u64);
 
     assert!(!client.is_expired(&business, &period));
 }
@@ -84,6 +85,7 @@ fn test_is_expired_returns_false_when_not_expired() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     assert!(!client.is_expired(&business, &period));
@@ -106,6 +108,7 @@ fn test_is_expired_returns_true_when_expired() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     // Advance time past expiry
@@ -131,6 +134,7 @@ fn test_is_expired_at_exact_expiry_time() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     // Set time to exact expiry
@@ -165,6 +169,7 @@ fn test_expired_attestation_still_queryable() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     // Advance time past expiry
@@ -195,6 +200,7 @@ fn test_verify_attestation_ignores_expiry() {
         &1000,
         &1,
         &Some(expiry_ts),
+        &0u64,
     );
 
     // Advance time past expiry
@@ -216,8 +222,16 @@ fn test_migrate_preserves_expiry() {
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
     let expiry_ts = 2000u64;
 
-    client.submit_attestation(&business, &period, &old_root, &1000, &1, &Some(expiry_ts));
-    client.migrate_attestation(&admin, &business, &period, &new_root, &2);
+    client.submit_attestation(
+        &business,
+        &period,
+        &old_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+        &0u64,
+    );
+    client.migrate_attestation(&admin, &business, &period, &new_root, &2, &1u64);
 
     let result = client.get_attestation(&business, &period);
     assert!(result.is_some());
