@@ -32,6 +32,13 @@ mod attestation_import {
     pub use Client as AttestationContractClient;
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+use veritasor_attestation::AttestationContractClient;
+
+#[cfg(target_arch = "wasm32")]
+use attestation_import::AttestationContractClient;
+
+#[cfg(target_arch = "wasm32")]
 impl<'a> AttestationContractClient<'a> {
     pub fn new(env: &'a Env, address: &'a Address) -> Self {
         AttestationContractClient { env, address }
