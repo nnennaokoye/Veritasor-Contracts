@@ -19,9 +19,6 @@ pub mod interface_spec_check_test;
 pub mod key_rotation_test;
 
 #[cfg(test)]
-pub mod merkle;
-
-#[cfg(test)]
 pub mod merkle_fuzz_test;
 
 #[cfg(test)]
