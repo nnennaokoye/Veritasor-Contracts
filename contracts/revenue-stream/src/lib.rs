@@ -6,20 +6,68 @@
 
 #![allow(clippy::too_many_arguments)]
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, token, Address, BytesN, Env, IntoVal, String,
+};
+use veritasor_attestation::AttestationContractClient;
+use veritasor_common::replay_protection;
+
+/// Nonce channels for replay protection
+pub const NONCE_CHANNEL_ADMIN: u32 = 1;
 
 /// Attestation client: WASM import for wasm32 (avoids duplicate symbols), crate for tests.
 #[cfg(target_arch = "wasm32")]
 mod attestation_import {
+    // Define type aliases locally to match attestation contract
+    use soroban_sdk::{Address, BytesN, String, Vec};
+    #[allow(dead_code)]
+    pub type AttestationData = (BytesN<32>, u64, u32, i128);
+    #[allow(dead_code)]
+    pub type RevocationData = (Address, u64, String);
+    #[allow(dead_code)]
+    pub type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
+    #[allow(dead_code)]
+    pub type AttestationStatusResult =
+        Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
+
     // Path from crate dir (contracts/revenue-stream): ../../ = workspace root.
     soroban_sdk::contractimport!(
         file = "../../target/wasm32-unknown-unknown/release/veritasor_attestation.wasm"
     );
     pub use Client as AttestationContractClient;
 }
-#[cfg(not(target_arch = "wasm32"))]
-mod attestation_import {
-    pub use veritasor_attestation::AttestationContractClient;
+
+impl<'a> AttestationContractClient<'a> {
+    pub fn new(env: &'a Env, address: &'a Address) -> Self {
+        AttestationContractClient { env, address }
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub fn get_attestation(
+        &self,
+        business: &Address,
+        period: &String,
+    ) -> Option<(BytesN<32>, u64, u32, i128, Option<BytesN<32>>, Option<u64>)> {
+        let mut args = soroban_sdk::Vec::new(self.env);
+        args.push_back(business.into_val(self.env));
+        args.push_back(period.into_val(self.env));
+        self.env.invoke_contract(
+            self.address,
+            &soroban_sdk::Symbol::new(self.env, "get_attestation"),
+            args,
+        )
+    }
+
+    pub fn is_revoked(&self, business: &Address, period: &String) -> bool {
+        let mut args = soroban_sdk::Vec::new(self.env);
+        args.push_back(business.into_val(self.env));
+        args.push_back(period.into_val(self.env));
+        self.env.invoke_contract(
+            self.address,
+            &soroban_sdk::Symbol::new(self.env, "is_revoked"),
+            args,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -55,8 +103,17 @@ pub struct RevenueStreamContract;
 #[contractimpl]
 #[allow(clippy::too_many_arguments)]
 impl RevenueStreamContract {
-    pub fn initialize(env: Env, admin: Address) {
+    /// Initialize the contract with an admin address.
+    ///
+    /// # Replay Protection
+    /// Uses admin address and `NONCE_CHANNEL_ADMIN` channel.
+    /// First call must use nonce 0.
+    pub fn initialize(env: Env, admin: Address, nonce: u64) {
         admin.require_auth();
+
+        // Verify and increment nonce for replay protection
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
+
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("already initialized");
         }
@@ -66,10 +123,14 @@ impl RevenueStreamContract {
 
     /// Create a stream: fund it with `amount` of `token` (transferred from caller).
     /// Release is allowed once attestation (business, period) exists and is not revoked.
+    ///
+    /// # Replay Protection
+    /// Uses admin address and `NONCE_CHANNEL_ADMIN` channel.
     #[allow(clippy::too_many_arguments)]
     pub fn create_stream(
         env: Env,
         admin: Address,
+        nonce: u64,
         attestation_contract: Address,
         business: Address,
         period: String,
@@ -84,6 +145,9 @@ impl RevenueStreamContract {
             .expect("not initialized");
         assert_eq!(admin, stored_admin);
         admin.require_auth();
+
+        // Verify and increment nonce for replay protection
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         assert!(amount > 0, "amount must be positive");
         let id: u64 = env
             .storage()
@@ -119,8 +183,7 @@ impl RevenueStreamContract {
             .get(&DataKey::Stream(stream_id))
             .expect("stream not found");
         assert!(!stream.released, "stream already released");
-        let client =
-            attestation_import::AttestationContractClient::new(&env, &stream.attestation_contract);
+        let client = AttestationContractClient::new(&env, &stream.attestation_contract);
         let exists = client
             .get_attestation(&stream.business, &stream.period)
             .is_some();
@@ -147,5 +210,11 @@ impl RevenueStreamContract {
             .instance()
             .get(&DataKey::Admin)
             .expect("not initialized")
+    }
+
+    /// Get the current nonce for replay protection.
+    /// Returns the nonce value that must be supplied on the next call.
+    pub fn get_replay_nonce(env: Env, actor: Address, channel: u32) -> u64 {
+        replay_protection::get_nonce(&env, &actor, channel)
     }
 }
