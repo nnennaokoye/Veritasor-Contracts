@@ -1,11 +1,14 @@
 [workspace]
 # Keep members in alphabetical order so new PRs add in the same place (reduces merge conflicts).
 members = [
+    "contracts/aggregated-attestations",
     "contracts/attestation",
+    "contracts/attestation-snapshot",
     "contracts/attestor-staking",
     "contracts/audit-log",
     "contracts/business-config",
     "contracts/integration-registry",
+    "contracts/network-config",
     "contracts/protocol-dao",
     "contracts/protocol-simulation",
     "contracts/revenue-stream",

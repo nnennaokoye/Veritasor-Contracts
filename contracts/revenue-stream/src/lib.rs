@@ -49,11 +49,13 @@ impl<'a> AttestationContractClient<'a> {
         AttestationContractClient { env, address }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_attestation(
         &self,
         business: &Address,
         period: &String,
     ) -> Option<(BytesN<32>, u64, u32, i128, Option<u64>)> {
+    ) -> Option<(BytesN<32>, u64, u32, i128, Option<BytesN<32>>, Option<u64>)> {
         let mut args = soroban_sdk::Vec::new(self.env);
         args.push_back(business.into_val(self.env));
         args.push_back(period.into_val(self.env));

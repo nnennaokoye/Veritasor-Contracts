@@ -1,4 +1,5 @@
 //! Dispute management module for attestation challenges
+use crate::dynamic_fees::DataKey;
 use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
 use super::DataKey;
@@ -53,33 +54,12 @@ pub struct DisputeResolution {
     pub notes: String,
 }
 
-/// Optional resolution (contracttype-compatible alternative to Option<DisputeResolution>).
+/// Optional resolution for contracttype compatibility
 #[derive(Clone, Debug, PartialEq)]
 #[contracttype]
-pub enum MaybeResolution {
+pub enum OptionalResolution {
     None,
     Some(DisputeResolution),
-}
-
-impl MaybeResolution {
-    pub fn is_none(&self) -> bool {
-        matches!(self, MaybeResolution::None)
-    }
-    pub fn is_some(&self) -> bool {
-        matches!(self, MaybeResolution::Some(_))
-    }
-    pub fn unwrap(self) -> DisputeResolution {
-        match self {
-            MaybeResolution::Some(r) => r,
-            MaybeResolution::None => panic!("called unwrap on None"),
-        }
-    }
-    pub fn as_ref(&self) -> core::option::Option<&DisputeResolution> {
-        match self {
-            MaybeResolution::Some(r) => core::option::Option::Some(r),
-            MaybeResolution::None => core::option::Option::None,
-        }
-    }
 }
 
 /// Dispute record for a challenged attestation
@@ -103,7 +83,7 @@ pub struct Dispute {
     /// Timestamp when dispute was opened
     pub timestamp: u64,
     /// Resolution details (None if not yet resolved)
-    pub resolution: MaybeResolution,
+    pub resolution: OptionalResolution,
 }
 
 /// Storage keys for dispute management
